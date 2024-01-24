@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diamond Crush</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #0c0c0c;
+            color: #fff;
+        }
+
+        #score {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        canvas {
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        canvas.enemyClose {
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+        }
+
+        #startMenu {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            color: #fff;
+            z-index: 1000;
+        }
+
+        #startMenu h1 {
+            margin-bottom: 20px;
+        }
+
+        #startButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #00f;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 999;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="startMenu">
+        <h1>Diamond Crush</h1>
+        <button id="startButton">Start Game</button>
+    </div>
+    <!-- Game overlay to cover the canvas when paused -->
+    <div id="overlay"></div>
+
+    <div id="score">Score: 0</div>
+    <canvas id="diamondCanvas" width="600" height="600"></canvas>
+
+
+    <!--Scripts-->
+    <script>
+        const startButton = document.getElementById('startButton');
+        startButton.addEventListener('click', startGame);
+        // Get the overlay element
+        const overlay = document.getElementById('overlay');
+        const startMenu = document.getElementById('startMenu'); // Added for reference
+
+
+        function startGame() {
+            // Hide the start menu
+            startMenu.style.display = 'none';
+
+            // Show the game overlay while the game is running
+            overlay.style.display = 'none';
+
+            // Display a countdown before starting the game
+            let countdown = 3; // Initial countdown value
+
+            const countdownInterval = setInterval(() => {
+                if (countdown > 0) {
+                    // Display the countdown
+                    alert(`Starting in ${countdown}...`);
+                    countdown--;
+                } else {
+                    // Start or restart the game
+                    clearInterval(countdownInterval); // Stop the countdown
+                    resetGame();
+                    draw(); // Start rendering immediately
+                }
+            }, 1000); // 1000 milliseconds (1 second) interval for the countdown
+        }
+        const scoreElement = document.getElementById('score');
+        const canvas = document.getElementById('diamondCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const player = {
+            x: 50,
+            y: 50,
+            width: 30,
+            height: 30,
+            speed: 7
+        };
+
+        let currentLevel = 1;
+        let score = 0;
+        const levels = [];
+
+        const enemies = [];
+        const obstacles = [];
+
+        function getRandomDiamonds(count) {
+            const randomDiamonds = [];
+            for (let i = 0; i < count; i++) {
+                randomDiamonds.push({
+                    x: Math.random() * (canvas.width - 20),
+                    y: Math.random() * (canvas.height - 20),
+                    collected: false
+                });
+            }
+            return randomDiamonds;
+        }
+
+        function generateLevel() {
+            const diamondCount = currentLevel + 1;
+            return getRandomDiamonds(diamondCount);
+        }
+
+        function generateEnemies(count) {
+            const randomEnemies = [];
+            for (let i = 0; i < count; i++) {
+                randomEnemies.push({
+                    x: Math.random() * (canvas.width - 20),
+                    y: Math.random() * (canvas.height - 20),
+                    width: 20,
+                    height: 20,
+                    speed: 1.5
+                });
+            }
+            return randomEnemies;
+        }
+
+        function generateObstacles(count) {
+            const randomObstacles = [];
+            for (let i = 0; i < count; i++) {
+                randomObstacles.push({
+                    x: Math.random() * (canvas.width - 30),
+                    y: Math.random() * (canvas.height - 30),
+                    width: 30,
+                    height: 30
+                });
+            }
+            return randomObstacles;
+        }
+
+        function drawPlayer() {
+            ctx.save();
+            ctx.fillStyle = '#00f';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            // Add a white box shadow around the player
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.restore();
+        }
+
+        function drawDiamonds() {
+            ctx.fillStyle = '#f00';
+            levels[currentLevel - 1].forEach(diamond => {
+                if (!diamond.collected) {
+                    ctx.fillRect(diamond.x, diamond.y, 20, 20);
+                }
+            });
+        }
+
+        function drawEnemies() {
+            ctx.fillStyle = '#000';
+            enemies.forEach(enemy => {
+                ctx.save();
+                ctx.beginPath();
+                // Create a random shape for enemies
+                const numPoints = Math.floor(Math.random() * 5) + 3; // Random number of points (3 to 7)
+                const angleIncrement = (2 * Math.PI) / numPoints;
+                const radius = enemy.width / 2;
+                for (let i = 0; i < numPoints; i++) {
+                    const angle = i * angleIncrement;
+                    const x = enemy.x + radius * Math.cos(angle);
+                    const y = enemy.y + radius * Math.sin(angle);
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.closePath();
+                ctx.fill();
+                // Add a red box shadow
+                ctx.shadowColor = '#f00';
+                ctx.shadowBlur = 10;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+                ctx.restore();
+            });
+        }
+
+        function drawObstacles() {
+            ctx.fillStyle = '#777';
+            obstacles.forEach(obstacle => {
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            });
+        }
+
+        function collectDiamonds() {
+            levels[currentLevel - 1].forEach(diamond => {
+                if (!diamond.collected && player.x < diamond.x + 20 && player.x + player.width > diamond.x &&
+                    player.y < diamond.y + 20 && player.y + player.height > diamond.y) {
+                    diamond.collected = true;
+                    score += 10;
+                }
+            });
+
+            const allCollected = levels[currentLevel - 1].every(diamond => diamond.collected);
+            if (allCollected) {
+                currentLevel++;
+                levels[currentLevel - 1] = generateLevel();
+                enemies.length = 0; // Clear enemies array
+                enemies.push(...generateEnemies(currentLevel));
+                obstacles.length = 0; // Clear obstacles array
+                obstacles.push(...generateObstacles(currentLevel));
+                resetPlayerPosition();
+            }
+        }
+
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                // Move towards the player
+                const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+                enemy.x += enemy.speed * Math.cos(angle);
+                enemy.y += enemy.speed * Math.sin(angle);
+            });
+        }
+
+        function checkCollision() {
+            enemies.forEach(enemy => {
+                if (player.x < enemy.x + enemy.width &&
+                    player.x + player.width > enemy.x &&
+                    player.y < enemy.y + enemy.height &&
+                    player.y + player.height > enemy.y) {
+                    endGame();
+                }
+            });
+
+            obstacles.forEach(obstacle => {
+                // Check collisions with obstacles
+                if (player.x < obstacle.x + obstacle.width &&
+                    player.x + player.width > obstacle.x &&
+                    player.y < obstacle.y + obstacle.height &&
+                    player.y + player.height > obstacle.y) {
+                    // Player is blocked by the obstacle, so prevent movement
+                    player.x = player.prevX;
+                    player.y = player.prevY;
+                }
+            });
+
+            // Save the previous player position
+            player.prevX = player.x;
+            player.prevY = player.y;
+        }
+
+        function endGame() {
+            // Show the start menu when the game ends
+            startMenu.style.display = 'flex';
+
+            // Hide the game overlay
+            overlay.style.display = 'none';
+
+            // Reset the game without refreshing the page
+            resetGame();
+
+            // Simulate a page refresh after a delay (adjust the delay as needed)
+            setTimeout(() => {
+                location.reload();
+            }, 1000); // 1000 milliseconds (1 second) delay
+        }
+
+        function resetPlayerPosition() {
+            player.x = 50;
+            player.y = 50;
+            player.prevX = 50;
+            player.prevY = 50;
+        }
+
+        function resetGame() {
+            currentLevel = 1;
+            score = 0;
+            levels[currentLevel - 1] = generateLevel();
+            enemies.length = 0;
+            enemies.push(...generateEnemies(currentLevel));
+            obstacles.length = 0;
+            obstacles.push(...generateObstacles(currentLevel));
+            resetPlayerPosition();
+        }
+
+        function updateScoreDisplay() {
+            scoreElement.textContent = `Score: ${score}`;
+        }
+
+        function updateCanvasShadow() {
+            const isEnemyClose = enemies.some(enemy => {
+                const dx = enemy.x - player.x;
+                const dy = enemy.y - player.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                return distance < 6; // Adjusted proximity threshold to 18 pixels
+            });
+
+            if (isEnemyClose) {
+                canvas.classList.add('enemyClose');
+            } else {
+                canvas.classList.remove('enemyClose');
+            }
+        }
+
+
+
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawObstacles(); // Draw obstacles first
+            drawPlayer();
+            drawDiamonds();
+            drawEnemies();
+            collectDiamonds();
+            updateEnemies();
+            checkCollision();
+            updateCanvasShadow(); // Update canvas shadow based on enemy proximity
+            updateScoreDisplay(); // Update the score display
+            requestAnimationFrame(draw);
+        }
+
+        //mouse controlling scripts
+
+        function handleMouseMove(e) {
+            const rect = canvas.getBoundingClientRect();
+
+            // Calculate the new player position based on mouse coordinates
+            const newX = e.clientX - rect.left - player.width / 1;
+            const newY = e.clientY - rect.top - player.height / 1;
+
+            // Check if the new position is within the game area boundaries
+            if (newX >= 0 && newX <= canvas.width - player.width && newY >= 0 && newY <= canvas.height - player.height) {
+                player.x = newX;
+                player.y = newY;
+            }
+        }
+
+        document.addEventListener('mousemove', handleMouseMove);
+        function debounce(func, wait) {
+    let timeout;
+    return function () {
+        const context = this;
+        const args = arguments;
+        const later = function () {
+            timeout = null;
+            func.apply(context, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+const handleMouseMoveDebounced = debounce(handleMouseMove, 16); // Adjust the wait time as needed
+document.addEventListener('mousemove', handleMouseMoveDebounced);
+    </script>
+
+
+</body>
+
+</html>
